@@ -1,5 +1,8 @@
-from importlib.resources import path
 import os
+os.environ["JAX_ENABLE_X64"] = "True"
+# os.environ["JAX_PLATFORMS"] = "gpu"
+
+from importlib.resources import path
 import numpy as np
 import pandas as pd
 import h5py
@@ -16,7 +19,9 @@ warnings.filterwarnings("ignore")
 
 from src.download import download_tess_data
 from src.masking import process_all_sectors
-from src.gp_fit import GPFit, VAR_NAMES, WalkerPlotCallback
+from src.gp_fit_base import WalkerPlotCallback
+from src.celerite_backend import CeleriteGPFit
+from src.jax_backend import TinygpGPFit
 import arviz as az
 
 # ===================================================================
@@ -32,7 +37,7 @@ TIC_ID = "202490797"
 # -----------------------------------------------
 # data preprocessing options
 
-BIN_SIZE = 30. / 24/60   # minutes
+BIN_SIZE = 50. / 24/60   # minutes
 DOWNSAMPLE = 1
 REFIT_MASK = False
 REFIT_MAP = False
@@ -41,15 +46,20 @@ REMOVE_OUTLIERS = True
 PLOT_PHASE = True
 
 # -----------------------------------------------
+# GP backend
+
+GPFit = TinygpGPFit
+
+# -----------------------------------------------
 # MCMC sampling options
 
 NCHAINS = 10
-SAMPLER = "pymc"
+SAMPLER = "numpyro"
 TUNE = 2500
 DRAWS = 2500
 TARGET_ACCEPT = 0.9
 STEP_SCALE = 0.25
-PYMC_CALLBACK = True
+PYMC_CALLBACK = False
 USE_MAP_INIT = True
 
 # -----------------------------------------------
@@ -134,7 +144,10 @@ prior_params = {
                 "f":             {"type": "uniform", "lower": 0.0, "upper": 1.0},
             }
 
-gp.build_pymc_model(prior_params=prior_params)
+if SAMPLER == "pymc":
+    gp.build_pymc_model(prior_params=prior_params)
+elif SAMPLER == "numpyro":
+    gp.build_numpyro_model(prior_params=prior_params)
 
 soln = gp.fit_kernel_initial(acf_weight=1.0, psd_weight=1.0, n_freq=int(5e5), max_lag=4*gp.prot_init, log_spacing=True)
 gp.plot_kernel_components(soln=soln, output_dir=MAP_PLOT_DIR)
@@ -154,9 +167,12 @@ for key in prior_params.keys():
             half_width = 0.5 * (spec["upper"] - spec["lower"])
             prior_params[key] = {"type": "uniform", "lower": val - half_width, "upper": val + half_width}
 
-gp.build_pymc_model(prior_params=prior_params)
+if SAMPLER == "pymc":
+    gp.build_pymc_model(prior_params=prior_params)
+elif SAMPLER == "numpyro":
+    gp.build_numpyro_model(prior_params=prior_params)
 
-    
+
 # ===================================================================
 # Run MCMC sampling (uses cached MAP + model)
 # ===================================================================

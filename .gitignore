@@ -1,0 +1,9 @@
+src/__pycache__/*
+__pycache__/*
+results/*
+output/*
+draft/*
+notebooks/*
+old_code/*
+*.txt
+.claude/*
