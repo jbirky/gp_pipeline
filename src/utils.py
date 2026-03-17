@@ -4,6 +4,7 @@ import numpy as np
 from scipy.optimize import root
 from scipy.special import gammaincc
 
+__all__ = ["estimate_inverse_gamma_parameters", "combine_plots_to_pdf"]
 
 def estimate_inverse_gamma_parameters(
     lower, upper, target=0.01, initial=None, **kwargs
